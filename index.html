@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 資安：加入 Content Security Policy，針對網際網路佈署進行強化，限制資源載入來源防範 XSS -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://unpkg.com https://cdnjs.cloudflare.com blob:; connect-src 'self' data: blob: https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; worker-src blob:;">
+<title>KoboNotes — 閱讀筆記整理工具</title>
+
+<!-- 移除 React 與 Babel，改採用 Preact + HTM 無編譯架構，大幅降低網頁首次載入時間與傳輸量 -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+/* 樣式保持原設計，未更動 */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070d1b; --s1:#0d1528; --s2:#111e38; --s3:#162040;
+  --acc:#3b7cf4; --acc2:#1a3a7a; --acc-dim:rgba(59,124,244,.15);
+  --text:#e2e8f0; --dim:#6b8aad; --dim2:#4a6280;
+  --bdr:rgba(59,124,244,.18); --bdr2:rgba(59,124,244,.08);
+  --r:14px; --r-sm:8px; --nc:#93c5fd;
+  --green:#22c55e; --green-dim:rgba(34,197,94,.15);
+}
+html{font-size:16px; scroll-behavior:smooth}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.7}
+#root{min-height:100vh}
+::selection{background:rgba(59,124,244,.3)}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:rgba(59,124,244,.3);border-radius:3px}
+
+/* ── LANDING ─────────────────────────────────────── */
+.land{min-height:100vh;display:flex;flex-direction:column}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;border-bottom:1px solid var(--bdr2);backdrop-filter:blur(12px);background:rgba(7,13,27,.8);position:sticky;top:0;z-index:50}
+.nav-logo{display:flex;align-items:center;gap:.6rem;font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,var(--acc),#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-logo svg{flex-shrink:0}
+.nav-badge{font-size:.7rem;padding:.2rem .55rem;border-radius:20px;background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.25);font-weight:600}
+
+.hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem 1.5rem 3rem;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(59,124,244,.12),transparent);pointer-events:none}
+.hero-tag{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .85rem;border-radius:20px;background:var(--acc-dim);border:1px solid var(--bdr);color:var(--acc);font-size:.8rem;font-weight:600;margin-bottom:1.5rem}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:700;line-height:1.2;margin-bottom:1rem;max-width:700px}
+.hero h1 span{background:linear-gradient(135deg,var(--acc),#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:1.05rem;color:var(--dim);max-width:520px;margin-bottom:2.5rem;line-height:1.8}
+.privacy-note{display:inline-flex;align-items:center;gap:.45rem;font-size:.8rem;color:var(--green);background:var(--green-dim);border:1px solid rgba(34,197,94,.2);padding:.4rem 1rem;border-radius:20px;margin-bottom:2.5rem}
+
+.upload-wrap{width:100%;max-width:520px;margin:0 auto}
+.drop-zone{border:2px dashed var(--bdr);border-radius:var(--r);padding:2.5rem 2rem;background:var(--s1);cursor:pointer;transition:all .3s;text-align:center;position:relative}
+.drop-zone:hover,.drop-zone.over{border-color:var(--acc);background:rgba(59,124,244,.06);transform:translateY(-2px)}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-icon{width:48px;height:48px;margin:0 auto .75rem;color:var(--acc);opacity:.8}
+.drop-title{font-size:1rem;font-weight:600;margin-bottom:.3rem}
+.drop-sub{font-size:.82rem;color:var(--dim)}
+.drop-sub span{color:var(--acc);text-decoration:underline;cursor:pointer}
+
+.how{padding:5rem 1.5rem;max-width:900px;margin:0 auto;width:100%}
+.section-tag{display:flex;align-items:center;gap:.5rem;font-size:.8rem;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:1px;margin-bottom:.75rem;justify-content:center}
+.section-tag::before,.section-tag::after{content:'';flex:0 0 30px;height:1px;background:var(--bdr)}
+.how h2{font-size:1.75rem;font-weight:700;text-align:center;margin-bottom:.75rem}
+.how-sub{text-align:center;color:var(--dim);margin-bottom:3rem;font-size:.95rem}
+
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.25rem}
+.step{background:var(--s1);border:1px solid var(--bdr2);border-radius:var(--r);padding:1.5rem;position:relative;transition:.3s}
+.step:hover{border-color:var(--bdr);transform:translateY(-3px);box-shadow:0 8px 24px rgba(59,124,244,.1)}
+.step-num{width:36px;height:36px;border-radius:50%;background:var(--acc-dim);border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:var(--acc);margin-bottom:1rem}
+.step h3{font-size:.95rem;font-weight:700;margin-bottom:.5rem}
+.step p{font-size:.82rem;color:var(--dim);line-height:1.7}
+.step code{background:rgba(59,124,244,.1);color:var(--nc);padding:2px 6px;border-radius:4px;font-size:.75rem;word-break:break-all}
+.step a{color:var(--acc);text-decoration:none}
+.step a:hover{text-decoration:underline}
+
+.plat-tabs{display:flex;gap:.5rem;margin-top:.75rem}
+.plat-tab{padding:.25rem .65rem;border-radius:6px;font-size:.72rem;border:1px solid var(--bdr2);background:transparent;color:var(--dim);cursor:pointer;font-family:inherit;transition:.2s}
+.plat-tab.active{background:var(--acc-dim);border-color:var(--bdr);color:var(--acc)}
+.path-box{margin-top:.65rem;padding:.5rem .75rem;background:rgba(0,0,0,.3);border-radius:6px;border:1px solid var(--bdr2);font-size:.72rem;color:var(--nc);word-break:break-all;line-height:1.6;font-family:monospace}
+
+.features{padding:4rem 1.5rem;background:var(--s1);border-top:1px solid var(--bdr2);border-bottom:1px solid var(--bdr2)}
+.features-inner{max-width:900px;margin:0 auto}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:2.5rem}
+.feat{display:flex;gap:.85rem;align-items:flex-start;padding:1.1rem;background:var(--bg);border:1px solid var(--bdr2);border-radius:var(--r-sm);transition:.2s}
+.feat:hover{border-color:var(--bdr)}
+.feat-icon{width:36px;height:36px;border-radius:8px;background:var(--acc-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem}
+.feat-text h4{font-size:.88rem;font-weight:700;margin-bottom:.2rem}
+.feat-text p{font-size:.78rem;color:var(--dim);line-height:1.6}
+
+.footer{padding:2rem;text-align:center;font-size:.78rem;color:var(--dim2);border-top:1px solid var(--bdr2)}
+.footer a{color:var(--dim);text-decoration:none}
+.footer a:hover{color:var(--text)}
+
+.loading{position:fixed;inset:0;background:rgba(7,13,27,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(8px)}
+.spinner{width:44px;height:44px;border:3px solid rgba(59,124,244,.2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{margin-top:1.1rem;color:var(--dim);font-size:.9rem}
+
+/* ── APP (after upload) ──────────────────────────── */
+.app-hdr{position:sticky;top:0;z-index:99;background:rgba(7,13,27,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--bdr2);display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;flex-wrap:wrap}
+.app-logo{font-size:1.05rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--acc),#93c5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;display:flex;align-items:center;gap:.4rem}
+.back-btn{display:flex;align-items:center;gap:.3rem;background:none;border:none;color:var(--dim);cursor:pointer;font-size:.82rem;padding:.3rem .6rem;border-radius:6px;font-family:inherit;transition:.2s}
+.back-btn:hover{color:var(--text);background:rgba(59,124,244,.1)}
+.new-btn{display:flex;align-items:center;gap:.3rem;background:var(--acc-dim);border:1px solid var(--bdr);color:var(--acc);cursor:pointer;font-size:.78rem;padding:.3rem .7rem;border-radius:6px;font-family:inherit;transition:.2s;margin-left:auto}
+.new-btn:hover{background:rgba(59,124,244,.25)}
+.sbox{flex:1;max-width:360px;position:relative}
+.sbox svg{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--dim)}
+.sbox input{width:100%;padding:.42rem .85rem .42rem 2.1rem;background:rgba(59,124,244,.07);border:1px solid var(--bdr2);border-radius:6px;color:var(--text);font-size:.83rem;outline:none;font-family:inherit;transition:.2s}
+.sbox input:focus{border-color:var(--acc)}
+.sbox input::placeholder{color:var(--dim)}
+.stat-txt{font-size:.76rem;color:var(--dim);white-space:nowrap}
+
+.bar{display:flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;flex-wrap:wrap;border-bottom:1px solid var(--bdr2)}
+.bar label{font-size:.74rem;color:var(--dim2)}
+.chip{padding:.25rem .7rem;border-radius:20px;font-size:.75rem;background:rgba(59,124,244,.05);border:1px solid var(--bdr2);color:var(--dim);cursor:pointer;transition:.2s;font-family:inherit}
+.chip:hover{background:rgba(59,124,244,.12);border-color:var(--bdr)}
+.chip.on{background:rgba(59,124,244,.2);border-color:var(--acc);color:var(--acc)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:1.1rem;padding:1.25rem}
+.card{background:var(--s1);border-radius:var(--r);overflow:hidden;cursor:pointer;border:1px solid var(--bdr2);transition:all .25s;display:flex;flex-direction:column}
+.card:hover{transform:translateY(-4px);border-color:var(--bdr);box-shadow:0 8px 28px rgba(59,124,244,.15),0 2px 8px rgba(0,0,0,.4)}
+.cover{aspect-ratio:2/3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.1rem;text-align:center;background:linear-gradient(160deg,#0d1528,#0a1f48)}
+.cover-icon{font-size:2rem;opacity:.3;margin-bottom:.55rem}
+.cover-title{font-size:.75rem;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;opacity:.9}
+.cinfo{padding:.7rem;flex:1;display:flex;flex-direction:column}
+.ctitle{font-size:.82rem;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;margin-bottom:.2rem}
+.cauthor{font-size:.72rem;color:var(--dim);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:.35rem}
+.prog-wrap{height:2px;background:rgba(59,124,244,.12);border-radius:1px;overflow:hidden;margin-bottom:.35rem}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--acc),#93c5fd);border-radius:1px}
+.badges{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:auto}
+.badge{font-size:.66rem;padding:.1rem .4rem;border-radius:8px;background:rgba(59,124,244,.15);color:var(--acc);font-weight:500}
+.badge.n{background:rgba(147,197,253,.1);color:var(--nc)}
+
+.detail{max-width:840px;margin:0 auto;padding:1.25rem}
+.d-hdr{display:flex;gap:1.25rem;margin-bottom:1.75rem;padding-bottom:1.25rem;border-bottom:1px solid var(--bdr2)}
+.d-cover{width:140px;min-width:140px;aspect-ratio:2/3;border-radius:var(--r);overflow:hidden}
+.d-cover .cover{height:100%;border-radius:0}
+.d-meta h1{font-size:1.35rem;font-weight:700;line-height:1.3;margin-bottom:.25rem}
+.d-meta .auth{font-size:.9rem;color:var(--dim);margin-bottom:.65rem}
+.d-meta .desc{font-size:.82rem;color:var(--dim);line-height:1.8;max-height:140px;overflow-y:auto}
+.stats{display:flex;gap:1rem;margin-top:.85rem;flex-wrap:wrap}
+.stat-box{display:flex;flex-direction:column;align-items:center;padding:.55rem .85rem;background:rgba(59,124,244,.08);border:1px solid var(--bdr2);border-radius:8px;min-width:68px}
+.stat-box .n{font-size:1.25rem;font-weight:700;color:var(--acc)}
+.stat-box .l{font-size:.68rem;color:var(--dim)}
+
+.ann-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem;flex-wrap:wrap;gap:.5rem}
+.ann-hdr h2{font-size:.95rem;font-weight:700;display:flex;align-items:center;gap:.4rem;color:var(--text)}
+.exp-btn{display:flex;align-items:center;gap:.3rem;background:rgba(59,124,244,.08);border:1px solid var(--bdr2);color:var(--dim);cursor:pointer;font-size:.75rem;padding:.3rem .6rem;border-radius:6px;font-family:inherit;transition:.2s}
+.exp-btn:hover{color:var(--text);background:rgba(59,124,244,.15);border-color:var(--bdr)}
+.frow{display:flex;gap:.45rem;align-items:center;flex-wrap:wrap;margin-bottom:.85rem}
+.ch-group{margin-bottom:1.1rem}
+.ch-title{font-size:.76rem;font-weight:700;color:var(--acc);padding:.3rem 0;margin-bottom:.55rem;border-bottom:1px solid rgba(59,124,244,.2)}
+.ann{border-radius:10px;border:1px solid var(--bdr2);overflow:hidden;margin-bottom:.7rem;transition:.2s}
+.ann:hover{border-color:rgba(59,124,244,.4)}
+.hi{padding:.8rem 1.05rem;background:rgba(59,124,244,.08);border-left:3px solid var(--acc);font-size:.88rem;line-height:1.8;position:relative;white-space:pre-wrap}
+.hi::before{content:'\u201c';position:absolute;top:-.1rem;left:.2rem;font-size:1.8rem;color:var(--acc);opacity:.2}
+.nt{padding:.65rem 1.05rem;background:rgba(13,21,40,.7);border-top:1px solid rgba(59,124,244,.08);font-size:.8rem;line-height:1.7;color:#a8c0e0;white-space:pre-wrap}
+.nt-label{font-size:.65rem;color:var(--nc);text-transform:uppercase;font-weight:700;letter-spacing:.4px;margin-bottom:.2rem}
+.ann-date{padding:.3rem 1.05rem;background:rgba(59,124,244,.03);font-size:.68rem;color:var(--dim2)}
+.empty{text-align:center;padding:2.5rem;color:var(--dim);font-size:.88rem}
+
+.err-box{max-width:480px;margin:3rem auto;padding:1.5rem;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);text-align:center}
+.err-box h3{color:#f87171;margin-bottom:.5rem}
+.err-box p{color:var(--dim);font-size:.85rem;margin-bottom:1rem}
+.retry-btn{background:var(--acc);color:white;border:none;padding:.5rem 1.2rem;border-radius:6px;cursor:pointer;font-family:inherit;font-size:.85rem;transition:.2s}
+.retry-btn:hover{background:#2563eb}
+
+@media(max-width:640px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:.85rem;padding:.9rem}
+  .d-hdr{flex-direction:column;align-items:center;text-align:center}
+  .d-cover{width:120px;min-width:120px}.stats{justify-content:center}
+  .sbox{max-width:100%;order:10;flex-basis:100%;margin-left:0}
+  .hero h1{font-size:1.75rem}
+  .new-btn{display:none}
+}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(7,13,27,.8);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem}
+.modal-content{background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:2rem;max-width:560px;width:100%;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.5);animation:slideUp .3s ease-out}
+.modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--dim);font-size:1.5rem;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:.2s}
+.modal-close:hover{background:rgba(255,255,255,.1);color:var(--text)}
+.modal-content h2{font-size:1.4rem;font-weight:700;margin-bottom:1.5rem;color:var(--acc)}
+.modal-body p{font-size:.9rem;color:var(--dim);line-height:1.7;margin-bottom:1rem}
+.modal-body strong{color:var(--text)}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- 架構/效能：改用 ES Module，並帶入 Preact + HTM 取代原本的 React + Babel 在瀏覽器裡編譯的方案。程式碼更精簡且執行速度快數十倍 -->
+<script type="module">
+import { html, render, useState, useEffect, useCallback, useMemo, useRef } from 'https://unpkg.com/htm@3.1.1/preact/standalone.module.js';
+
+/* ── SQLite parser ───────────────────────────────── */
+async function parseDB(file){
+  // 效能/架構：只在解析時動態注入與載入 SQL.js，縮短首頁白畫面時間
+  if(!window.initSqlJs) {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js';
+    document.body.appendChild(script);
+    await new Promise((resolve) => script.onload = resolve);
+  }
+
+  const SQL=await window.initSqlJs({locateFile:f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}`});
+  const buf=await file.arrayBuffer();
+  const db=new SQL.Database(new Uint8Array(buf));
+
+  const run=(sql)=>{try{const r=db.exec(sql);if(!r.length)return[];const c=r[0].columns;return r[0].values.map(row=>{const o={};c.forEach((k,i)=>o[k]=row[i]);return o;});}catch{return[];}};
+
+  const allBooks=run("SELECT * FROM content WHERE ContentType=6 AND Title IS NOT NULL AND Title != '' ORDER BY DateCreated DESC");
+  const POCKET='application/x-kobo-html+pocket';
+  const books=allBooks.filter(b=>b.MimeType!==POCKET&&(b.Accessibility===1||b.Accessibility===6||b.EntitlementId));
+  const bookList=books.length>0?books:allBooks.filter(b=>b.MimeType!==POCKET);
+
+  const bms=run("SELECT b.BookmarkID,b.VolumeID,b.ContentID,b.Text,b.Annotation,b.DateCreated,b.ChapterProgress,c.Title AS ChapterTitle FROM Bookmark b LEFT JOIN content c ON b.ContentID=c.ContentID ORDER BY b.VolumeID,b.ChapterProgress,b.DateCreated")
+    ||run("SELECT BookmarkID,VolumeID,ContentID,Text,Annotation,DateCreated,ChapterProgress FROM Bookmark ORDER BY VolumeID,ChapterProgress,DateCreated");
+
+  db.close();
+
+  const bmMap={};
+  (bms||[]).forEach(bm=>{const v=bm.VolumeID||'';(bmMap[v]=bmMap[v]||[]).push(bm);});
+
+  const result=bookList.map(b=>{
+    const cid=b.ContentID;
+    const ar=bmMap[cid]||[];
+    let pct=b.___PercentRead||0;
+    if(typeof pct==='number'&&pct<=1.0)pct=Math.round(pct*100); else pct=Math.round(pct)||0;
+    
+    const anns=ar.filter(a=>(a.Text&&a.Text.trim())||(a.Annotation&&a.Annotation.trim())).map(a=>({
+      id:a.BookmarkID||'',
+      text:(a.Text||'').trim(),
+      note:(a.Annotation||'').trim(),
+      chapter:(a.ChapterTitle||'').trim(),
+      date:(a.DateCreated||'').slice(0,10)
+    }));
+
+    return {
+      id:cid,
+      title:b.Title||'',
+      author:b.Attribution||'',
+      // 用 Regex 簡單剝除原始文本的 HTML (發行商可能夾帶的爛內容)
+      description:(b.Description||'').replace(/<[^>]+>/g,'').trim(),
+      publisher:b.Publisher||'',
+      date:(b.DateCreated||'').slice(0,10),
+      percent:pct,
+      highlights:anns.filter(a=>a.text).length,
+      notes:anns.filter(a=>a.note).length,
+      annotations:anns
+    };
+  });
+  const totalH=result.reduce((s,b)=>s+b.highlights,0);
+  const totalN=result.reduce((s,b)=>s+b.notes,0);
+  return {books:result,totalHighlights:totalH,totalNotes:totalN};
+}
+
+/* ── Icons ───────────────────────────────────────── */
+const SearchIcon=()=>html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`;
+const BackIcon=()=>html`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>`;
+const DlIcon=()=>html`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+const UploadIcon=()=>html`<svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+const ShieldIcon=()=>html`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+const BookIcon=()=>html`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`;
+const PlusIcon=()=>html`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+/* ── Step component ──────────────────────────────── */
+function Step({num,title,children}){
+  return html`
+    <div class="step">
+      <div class="step-num">${num}</div>
+      <h3>${title}</h3>
+      ${children}
+    </div>
+  `;
+}
+
+/* ── PathStep with platform tabs ─────────────────── */
+function PathStep(){
+  const[plat,setPlat]=useState('win');
+  const paths={
+    win:html`<p style=${{fontSize:'.82rem',color:'var(--dim)',lineHeight:1.7}}>按 <code>Win+R</code>，輸入以下路徑：</p><div class="path-box">%LocalAppData%\\Kobo\\Kobo Desktop Edition\\Kobo.sqlite</div>`,
+    mac:html`<p style=${{fontSize:'.82rem',color:'var(--dim)',lineHeight:1.7}}>在 Finder 按 <code>⌘+Shift+G</code>，輸入：</p><div class="path-box">~/Library/Application Support/Kobo/Kobo Desktop Edition/Kobo.sqlite</div>`
+  };
+  return html`
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>找到資料庫檔案</h3>
+      <div class="plat-tabs">
+        <button class="plat-tab ${plat==='win'?'active':''}" onClick=${()=>setPlat('win')}>Windows</button>
+        <button class="plat-tab ${plat==='mac'?'active':''}" onClick=${()=>setPlat('mac')}>macOS</button>
+      </div>
+      ${paths[plat]}
+    </div>
+  `;
+}
+
+/* ── Legal & Policy Modal ────────────────────────── */
+function PolicyModal({ type, onClose }) {
+  const content = type === 'privacy' ? html`
+    <h2>隱私權聲明</h2>
+    <div class="modal-body">
+      <p>1. <strong>資料儲存與處理</strong>：本工具（KoboNotes）為純前端應用程式，所有資料庫解析與文字處理作業均在您的瀏覽器本地端進行。</p>
+      <p>2. <strong>不上傳資料</strong>：我們不會將您的資料庫檔案、閱讀筆記或任何個人資料上傳至任何伺服器。</p>
+      <p>3. <strong>第三方追蹤</strong>：本工具未使用任何追蹤碼、Cookie 或資料收集工具來分析您的使用行為。</p>
+      <p>4. <strong>開源透明</strong>：本工具完全開源且透明，任何人皆可檢視原始碼以驗證資料安全性。</p>
+    </div>
+  ` : html`
+    <h2>免責聲明</h2>
+    <div class="modal-body">
+      <p>1. <strong>無關聯性</strong>：本工具為獨立開發之第三方工具，與 Rakuten Kobo 及其關係企業無任何關聯、合作、授權或贊助。</p>
+      <p>2. <strong>資料風險</strong>：本工具僅為讀取資料庫並匯出文字，不具備修改或刪除資料庫的功能。儘管如此，使用者在操作時仍應妥善備份，並自行承擔資料遺失之風險。</p>
+      <p>3. <strong>不保證無誤</strong>：本工具盡力確保解析結果之正確性，但不保證所有筆記與畫線內容皆能百分之百無誤解析，亦不對因使用本工具所產生之任何損失負責。</p>
+      <p>4. <strong>著作權</strong>：您透過本工具匯出之筆記與書籍內容，皆屬原著作權人所有，請遵守相關著作權法規，僅限個人閱讀或合理使用。</p>
+    </div>
+  `;
+
+  return html`
+    <div class="modal-overlay" onClick=${onClose}>
+      <div class="modal-content" onClick=${e=>e.stopPropagation()}>
+        <button class="modal-close" onClick=${onClose}>×</button>
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+/* ── Landing Page ────────────────────────────────── */
+function Landing({onLoad,loading}){
+  const[over,setOver]=useState(false);
+  const[modal,setModal]=useState(null);
+  const inputRef=useRef();
+
+  const handle=useCallback(file=>{
+    if(!file)return;
+    if(!file.name.match(/\.(sqlite|sqlite3|db)$/i)){alert('請選擇 .sqlite 格式的資料庫檔案');return;}
+    onLoad(file);
+  },[onLoad]);
+
+  return html`
+    <div class="land">
+      <nav class="nav">
+        <div class="nav-logo">
+          <${BookIcon}/>
+          KoboNotes
+        </div>
+        <span class="nav-badge">完全免費 · 開源</span>
+      </nav>
+
+      <section class="hero">
+        <div class="hero-tag"><${BookIcon}/> Kobo 閱讀筆記整理工具</div>
+        <h1>把你的 Kobo 畫線筆記<br/><span>整理成漂亮的書架</span></h1>
+        <p class="hero-sub">上傳你的 Kobo 資料庫，即可瀏覽所有書籍的畫線重點與閱讀筆記，支援搜尋、篩選與匯出。</p>
+        <div class="privacy-note"><${ShieldIcon}/> 資料完全在你的瀏覽器中處理，不會上傳到任何伺服器</div>
+
+        <div class="upload-wrap">
+          <div class="drop-zone ${over?'over':''}"
+            onDragOver=${e=>{e.preventDefault();setOver(true)}}
+            onDragLeave=${()=>setOver(false)}
+            onDrop=${e=>{e.preventDefault();setOver(false);handle(e.dataTransfer.files[0])}}
+            onClick=${()=>inputRef.current?.click()}>
+            <input ref=${inputRef} type="file" accept=".sqlite,.sqlite3,.db"
+              style=${{position:'absolute',inset:0,opacity:0,cursor:'pointer'}}
+              onChange=${e=>handle(e.target.files[0])}/>
+            <${UploadIcon}/>
+            <div class="drop-title">拖放 Kobo.sqlite 到這裡</div>
+            <div class="drop-sub">或 <span>點擊選擇檔案</span>（支援 .sqlite / .db）</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="how">
+        <div class="section-tag">使用教學</div>
+        <h2>四步驟，馬上開始</h2>
+        <p class="how-sub">第一次使用只需 5 分鐘設定，之後每次只要上傳最新檔案即可</p>
+        <div class="steps">
+          <${Step} num="1" title="安裝 Kobo 桌面版">
+            <p>到 <a href="https://www.kobo.com/desktop" target="_blank" rel="noopener">kobo.com/desktop</a> 下載免費的桌面版應用程式（Windows / macOS）</p>
+          <//>
+          <${Step} num="2" title="登入並同步">
+            <p>打開 Kobo 桌面版，登入你的帳號。應用程式會自動透過網路同步你所有的書籍與筆記。</p>
+          <//>
+          <${PathStep}/>
+          <${Step} num="4" title="上傳，完成！">
+            <p>把 <code>Kobo.sqlite</code> 檔案拖放到上方的上傳區，即可看到你所有的書籍與筆記。</p>
+          <//>
+        </div>
+      </section>
+
+      <section class="features">
+        <div class="features-inner">
+          <div class="section-tag">功能特色</div>
+          <h2 style=${{textAlign:'center',fontSize:'1.6rem',fontWeight:700,marginBottom:'.5rem'}}>你需要的都在這裡</h2>
+          <div class="feat-grid">
+            ${[
+              ['📚','書架總覽','以卡片方式呈現所有書籍，清楚顯示畫線數與筆記數'],
+              ['🔍','即時搜尋','快速搜尋書名、作者，或在書中搜尋特定筆記內容'],
+              ['✏️','章節分組','筆記依章節自動分組，閱讀脈絡一目了然'],
+              ['📤','匯出 Markdown','一鍵匯出為 Markdown 格式，方便匯入 Notion、Obsidian 等工具'],
+              ['📊','排序篩選','依最近、書名、畫線數、筆記數排序，快速找到重點書籍'],
+              ['🔒','完全隱私','所有資料在瀏覽器本地處理，絕不上傳或儲存於伺服器'],
+            ].map(([icon,title,desc])=>html`
+              <div class="feat" key=${title}>
+                <div class="feat-icon">${icon}</div>
+                <div class="feat-text"><h4>${title}</h4><p>${desc}</p></div>
+              </div>
+            `)}
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>KoboNotes — 完全免費 · 開源 · 隱私優先</p>
+        <p style=${{marginTop:'.3rem', marginBottom:'.8rem'}}>與 Kobo / Rakuten 無任何關聯</p>
+        <div style=${{display:'flex',justifyContent:'center',gap:'1.2rem',fontSize:'.78rem'}}>
+          <a href="#" onClick=${(e)=>{e.preventDefault();setModal('privacy')}}>隱私權聲明</a>
+          <a href="#" onClick=${(e)=>{e.preventDefault();setModal('disclaimer')}}>免責聲明</a>
+          <a href="https://www.threads.com/@sadoho33" target="_blank" rel="noopener">作者 @sadoho33</a>
+        </div>
+      </footer>
+      ${modal && html`<${PolicyModal} type=${modal} onClose=${()=>setModal(null)} />`}
+    </div>
+  `;
+}
+
+/* ── Book Card ───────────────────────────────────── */
+function BookCard({book,onClick}){
+  return html`
+    <div class="card" onClick=${onClick}>
+      <div class="cover">
+        <div class="cover-icon">📖</div>
+        <!-- 資安：Preact 直接綁定變數將自動防範 XSS 跳脫處理，不需 dangerouslySetInnerHTML -->
+        <div class="cover-title">${book.title}</div>
+      </div>
+      <div class="cinfo">
+        <div class="ctitle">${book.title}</div>
+        <div class="cauthor">${book.author||'未知作者'}</div>
+        ${book.percent>0&&html`<div class="prog-wrap"><div class="prog-fill" style=${{width:book.percent+'%'}}></div></div>`}
+        <div class="badges">
+          ${book.highlights>0&&html`<span class="badge">${book.highlights} 畫線</span>`}
+          ${book.notes>0&&html`<span class="badge n">${book.notes} 筆記</span>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── Detail ──────────────────────────────────────── */
+function Detail({book}){
+  const[filter,setFilter]=useState('all');
+  const[q,setQ]=useState('');
+  
+  const anns=useMemo(()=>{
+    let items=book.annotations||[];
+    if(filter==='hi')items=items.filter(a=>a.text);
+    else if(filter==='nt')items=items.filter(a=>a.note);
+    if(q.trim()){const t=q.toLowerCase();items=items.filter(a=>(a.text+a.note+a.chapter).toLowerCase().includes(t));}
+    return items;
+  },[book.annotations,filter,q]);
+
+  const grouped=useMemo(()=>{
+    const g={};anns.forEach(a=>{const c=a.chapter||'未分類';(g[c]=g[c]||[]).push(a);});return g;
+  },[anns]);
+  
+  const exportMD=()=>{
+    let md="# "+book.title+"\n**"+(book.author||'未知作者')+"**\n\n---\n\n";
+    Object.entries(grouped).forEach(([ch,as])=>{
+      md+="## "+ch+"\n\n";
+      as.forEach(a=>{if(a.text)md+="> "+a.text+"\n\n";if(a.note)md+="📝 "+a.note+"\n\n";md+="---\n\n";});
+    });
+    const url=URL.createObjectURL(new Blob([md],{type:'text/markdown;charset=utf-8'}));
+    Object.assign(document.createElement('a'),{href:url,download:book.title+" - 閱讀筆記.md"}).click();
+    URL.revokeObjectURL(url);
+  };
+  
+  const fmtDate=d=>{if(!d)return'';try{return new Date(d).toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});}catch{return d;}};
+  
+  return html`
+    <div class="detail">
+      <div class="d-hdr">
+        <div class="d-cover"><div class="cover" style=${{height:'100%',borderRadius:0}}><div class="cover-icon">📖</div><div class="cover-title">${book.title}</div></div></div>
+        <div class="d-meta">
+          <h1>${book.title}</h1>
+          <div class="auth">${book.author||'未知作者'}${book.publisher?' · '+book.publisher:''}</div>
+          ${book.description&&html`<div class="desc">${book.description}</div>`}
+          <div class="stats">
+            <div class="stat-box"><span class="n">${book.highlights}</span><span class="l">畫線</span></div>
+            <div class="stat-box"><span class="n">${book.notes}</span><span class="l">筆記</span></div>
+            ${book.percent>0&&html`<div class="stat-box"><span class="n">${book.percent}%</span><span class="l">已讀</span></div>`}
+          </div>
+        </div>
+      </div>
+      <div class="ann-hdr">
+        <h2>✏️ 閱讀筆記（${anns.length}）</h2>
+        <button class="exp-btn" onClick=${exportMD}><${DlIcon}/> 匯出 Markdown</button>
+      </div>
+      <div class="frow">
+        ${[['all','全部'],['hi','畫線'],['nt','筆記']].map(([v,l])=>html`
+          <button key=${v} class=${'chip '+(filter===v?'on':'')} onClick=${()=>setFilter(v)}>${l}</button>
+        `)}
+        <div class="sbox" style=${{maxWidth:200,marginLeft:'auto'}}>
+          <${SearchIcon}/>
+          <input placeholder="搜尋筆記..." value=${q} onInput=${e=>setQ(e.target.value)}/>
+        </div>
+      </div>
+      ${anns.length===0
+        ?html`<div class="empty">這本書目前沒有畫線或筆記</div>`
+        :Object.entries(grouped).map(([ch,as])=>html`
+          <div class="ch-group" key=${ch}>
+            <div class="ch-title">${ch}</div>
+            ${as.map((a,i)=>html`
+              <div class="ann" key=${a.id||i}>
+                ${a.text&&html`<div class="hi">${a.text}</div>`}
+                ${a.note&&html`<div class="nt"><div class="nt-label">我的筆記</div>${a.note}</div>`}
+                ${a.date&&html`<div class="ann-date">${fmtDate(a.date)}</div>`}
+              </div>
+            `)}
+          </div>
+        `)
+      }
+    </div>
+  `;
+}
+
+/* ── Main App ────────────────────────────────────── */
+function App(){
+  const[data,setData]=useState(null);
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState(null);
+  const[sel,setSel]=useState(null);
+  const[q,setQ]=useState('');
+  const[sort,setSort]=useState('date');
+  const[filter,setFilter]=useState('all');
+
+  const handleLoad=useCallback(file=>{
+    setLoading(true);setError(null);
+    // 效能：透過 requestAnimationFrame 讓加載動畫優先顯示，避免 SQL 大量運算卡住畫面
+    requestAnimationFrame(()=>{
+      setTimeout(async ()=>{
+        try{const d=await parseDB(file);setData(d);}
+        catch(e){setError(e.message||'解析失敗，請確認檔案格式正確');}
+        finally{setLoading(false);}
+      }, 50);
+    });
+  },[]);
+
+  const books=useMemo(()=>{
+    if(!data)return[];
+    let b=[...data.books];
+    if(filter==='hi')b=b.filter(x=>x.highlights>0);
+    else if(filter==='nt')b=b.filter(x=>x.notes>0);
+    else if(filter==='any')b=b.filter(x=>x.highlights>0||x.notes>0);
+    if(q.trim()){const t=q.toLowerCase();b=b.filter(x=>(x.title+x.author).toLowerCase().includes(t));}
+    if(sort==='title')b.sort((a,b)=>a.title.localeCompare(b.title,'zh-TW'));
+    else if(sort==='hi')b.sort((a,b)=>b.highlights-a.highlights);
+    else if(sort==='nt')b.sort((a,b)=>b.notes-a.notes);
+    else b.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    return b;
+  },[data,q,sort,filter]);
+
+  if(loading)return html`
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>正在解析資料庫，請稍候...</p>
+    </div>
+  `;
+
+  if(!data)return html`<${Landing} onLoad=${handleLoad} loading=${loading}/>`;
+
+  if(error)return html`
+    <div style=${{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
+      <div class="err-box">
+        <h3>⚠️ 解析失敗</h3>
+        <p>${error}</p>
+        <button class="retry-btn" onClick=${()=>{setError(null);setData(null);}}>重新上傳</button>
+      </div>
+    </div>
+  `;
+
+  if(sel)return html`
+    <header class="app-hdr">
+      <button class="back-btn" onClick=${()=>setSel(null)}><${BackIcon}/> 返回書架</button>
+      <span class="app-logo"><${BookIcon}/>KoboNotes</span>
+      <button class="new-btn" onClick=${()=>{setData(null);setSel(null);}}><${PlusIcon}/> 載入新檔案</button>
+    </header>
+    <${Detail} book=${sel}/>
+  `;
+
+  return [
+    html`
+      <header class="app-hdr" key="header">
+        <span class="app-logo" onClick=${()=>setSel(null)}><${BookIcon}/>KoboNotes</span>
+        <div class="sbox">
+          <${SearchIcon}/>
+          <input placeholder="搜尋書名、作者..." value=${q} onInput=${e=>setQ(e.target.value)}/>
+        </div>
+        <span class="stat-txt">${data.books.length} 本書 · ${data.totalHighlights} 畫線 · ${data.totalNotes} 筆記</span>
+        <button class="new-btn" onClick=${()=>{setData(null);setSel(null);}}><${PlusIcon}/> 載入新檔案</button>
+      </header>
+    `,
+    html`
+      <div class="bar" key="bar">
+        <label>排序：</label>
+        ${[['date','最近'],['title','書名'],['hi','畫線數'],['nt','筆記數']].map(([v,l])=>html`
+          <button key=${v} class=${'chip '+(sort===v?'on':'')} onClick=${()=>setSort(v)}>${l}</button>
+        `)}
+        <label style=${{marginLeft:'.75rem'}}>篩選：</label>
+        ${[['all','全部'],['any','有筆記'],['hi','有畫線']].map(([v,l])=>html`
+          <button key=${v} class=${'chip '+(filter===v?'on':'')} onClick=${()=>setFilter(v)}>${l}</button>
+        `)}
+      </div>
+    `,
+    books.length===0
+      ?html`<div key="empty" class="empty" style=${{marginTop:'3rem'}}>找不到符合的書籍</div>`
+      :html`<div key="grid" class="grid">${books.map(b=>html`<${BookCard} key=${b.id} book=${b} onClick=${()=>setSel(b)}/>`)}</div>`
+  ];
+}
+
+render(html`<${App}/>`, document.getElementById('root'));
+</script>
+</body>
+</html>
