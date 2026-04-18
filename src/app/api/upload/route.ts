@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     // const env = getRequestContext().env;
     // const db = env.DB;
     
-    const body = await req.json();
+    const body = (await req.json()) as any;
     const { books } = body;
     
     if (!books || !Array.isArray(books)) {

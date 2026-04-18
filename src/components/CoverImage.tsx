@@ -21,7 +21,7 @@ export function CoverImage({ title, author, isDetail }: CoverImageProps) {
           observer.disconnect();
           const q = encodeURIComponent((title + " " + (author || "")).trim());
           fetch(`https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1`)
-            .then((res) => res.json())
+            .then((res) => res.json() as any)
             .then((data) => {
               if (data.items && data.items.length > 0 && data.items[0].volumeInfo.imageLinks) {
                 const url = data.items[0].volumeInfo.imageLinks.thumbnail.replace("http:", "https:");

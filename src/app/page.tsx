@@ -22,7 +22,7 @@ export default function Home() {
     if (status === "authenticated" && !data && !loading && !error) {
       setLoading(true);
       fetch("/api/books")
-        .then((res) => res.json())
+        .then((res) => res.json() as any)
         .then((resData) => {
           if (resData.books && resData.books.length > 0) {
             setData(resData);
