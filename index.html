@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- 資安：加入 Content Security Policy，針對網際網路佈署進行強化，限制資源載入來源防範 XSS -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://unpkg.com https://cdnjs.cloudflare.com blob:; connect-src 'self' data: blob: https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; worker-src blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://unpkg.com https://cdnjs.cloudflare.com blob:; connect-src 'self' data: blob: https://cdnjs.cloudflare.com https://unpkg.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://books.google.com; worker-src blob:;">
 <title>KoboNotes — 閱讀筆記整理工具</title>
 
 <!-- 移除 React 與 Babel，改採用 Preact + HTM 無編譯架構，大幅降低網頁首次載入時間與傳輸量 -->
@@ -113,12 +113,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:1.1rem;padding:1.25rem}
 .card{background:var(--s1);border-radius:var(--r);overflow:hidden;cursor:pointer;border:1px solid var(--bdr2);transition:all .25s;display:flex;flex-direction:column}
 .card:hover{transform:translateY(-4px);border-color:var(--bdr);box-shadow:0 8px 28px rgba(59,124,244,.15),0 2px 8px rgba(0,0,0,.4)}
-.cover{aspect-ratio:2/3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.1rem;text-align:center;background:linear-gradient(160deg,#0d1528,#0a1f48)}
-.cover-icon{font-size:2rem;opacity:.3;margin-bottom:.55rem}
-.cover-title{font-size:.75rem;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;opacity:.9}
-.cinfo{padding:.7rem;flex:1;display:flex;flex-direction:column}
-.ctitle{font-size:.82rem;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;margin-bottom:.2rem}
-.cauthor{font-size:.72rem;color:var(--dim);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:.35rem}
+.cover{aspect-ratio:2/3;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.1rem;text-align:center;background:linear-gradient(160deg,#0d1528,#0a1f48);position:relative}
+.cover-icon{font-size:2.5rem;opacity:.3;margin-bottom:.6rem}
+.cover-title{font-size:1.05rem;font-weight:700;line-height:1.4;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;opacity:.95;word-break:break-all}
+.cinfo{padding:.9rem;flex:1;display:flex;flex-direction:column}
+.ctitle{font-size:1.05rem;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;margin-bottom:.3rem;letter-spacing:.5px}
+.cauthor{font-size:.82rem;color:var(--dim);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:.45rem}
 .prog-wrap{height:2px;background:rgba(59,124,244,.12);border-radius:1px;overflow:hidden;margin-bottom:.35rem}
 .prog-fill{height:100%;background:linear-gradient(90deg,var(--acc),#93c5fd);border-radius:1px}
 .badges{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:auto}
@@ -416,15 +416,50 @@ function Landing({onLoad,loading}){
   `;
 }
 
+/* ── CoverImage Component ────────────────────────── */
+function CoverImage({title, author, isDetail}) {
+  const [coverUrl, setCoverUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    if(!ref.current || coverUrl || failed) return;
+    const observer = new IntersectionObserver((entries) => {
+      if(entries[0].isIntersecting) {
+        observer.disconnect();
+        const q = encodeURIComponent((title + " " + (author || '')).trim());
+        fetch(`https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1`)
+          .then(res => res.json())
+          .then(data => {
+            if(data.items && data.items.length > 0 && data.items[0].volumeInfo.imageLinks) {
+               const url = data.items[0].volumeInfo.imageLinks.thumbnail.replace('http:', 'https:');
+               setCoverUrl(url);
+            } else {
+               setFailed(true);
+            }
+          })
+          .catch(() => setFailed(true));
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [title, author, coverUrl, failed]);
+
+  return html`
+    <div class="cover" ref=${ref} style=${coverUrl ? {padding: 0, background: 'var(--s1)'} : (isDetail ? {height: '100%', borderRadius: 0} : {})}>
+      ${coverUrl 
+        ? html`<img src=${coverUrl} alt="cover" style=${{width: '100%', height: '100%', objectFit: 'cover'}} loading="lazy" />` 
+        : html`<div class="cover-icon">📖</div><div class="cover-title">${title}</div>`
+      }
+    </div>
+  `;
+}
+
 /* ── Book Card ───────────────────────────────────── */
 function BookCard({book,onClick}){
   return html`
     <div class="card" onClick=${onClick}>
-      <div class="cover">
-        <div class="cover-icon">📖</div>
-        <!-- 資安：Preact 直接綁定變數將自動防範 XSS 跳脫處理，不需 dangerouslySetInnerHTML -->
-        <div class="cover-title">${book.title}</div>
-      </div>
+      <${CoverImage} title=${book.title} author=${book.author} />
       <div class="cinfo">
         <div class="ctitle">${book.title}</div>
         <div class="cauthor">${book.author||'未知作者'}</div>
@@ -471,7 +506,7 @@ function Detail({book}){
   return html`
     <div class="detail">
       <div class="d-hdr">
-        <div class="d-cover"><div class="cover" style=${{height:'100%',borderRadius:0}}><div class="cover-icon">📖</div><div class="cover-title">${book.title}</div></div></div>
+        <div class="d-cover"><${CoverImage} title=${book.title} author=${book.author} isDetail=${true} /></div>
         <div class="d-meta">
           <h1>${book.title}</h1>
           <div class="auth">${book.author||'未知作者'}${book.publisher?' · '+book.publisher:''}</div>
